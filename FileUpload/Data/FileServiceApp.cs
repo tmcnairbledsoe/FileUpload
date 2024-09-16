@@ -26,26 +26,22 @@ namespace FileUpload.Data
             // Check if file already exists in Blob Storage
             if (await blobClient.ExistsAsync())
             {
-                return "File already exists";  // Return a message indicating the file exists
+                return "File already exists";
             }
 
             // Copy the original stream to a MemoryStream
             using var memoryStream = new MemoryStream();
             await content.CopyToAsync(memoryStream);
 
-            // Reset the memoryStream position to the beginning
             memoryStream.Position = 0;
 
             // Upload to Blob Storage from memoryStream
             await blobClient.UploadAsync(memoryStream);
-
-            // Reset the memoryStream position to the beginning before reading the content
             memoryStream.Position = 0;
 
             // Save metadata to Azure SQL
             using (IDbConnection db = new SqlConnection(_sqlConnectionString))
             {
-                // Read the content of the stream to a string
                 var fileContent = await new StreamReader(memoryStream).ReadToEndAsync();
                 string sql = "INSERT INTO UploadedFiles (FileName, Contents, UploadTime) VALUES (@FileName, @Contents, @UploadTime)";
                 await db.ExecuteAsync(sql, new { FileName = fileName, Contents = fileContent, UploadTime = DateTime.UtcNow });
