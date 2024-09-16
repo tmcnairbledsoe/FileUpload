@@ -1,0 +1,80 @@
+﻿@page "/"
+@inject FileUpload.Data.FileServiceApp FileServiceApp
+@inject IJSRuntime JS
+
+<h3>File Upload</h3>
+
+<InputFile OnChange="HandleFileSelected" />
+<button @onclick="UploadFile">Upload</button>
+
+@if (!string.IsNullOrEmpty(uploadMessage))
+{
+    <div class="alert alert-info">@uploadMessage</div>
+}
+
+<h3>Uploaded Files</h3>
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>File Name</th>
+            <th>Upload Time</th>
+            <th>Content</th>
+            <th>Action</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var file in files)
+        {
+            <tr>
+                <td>@file.FileName</td>
+                <td>@file.UploadTime</td>
+                <td>@file.Contents</td>
+                <td><button @onclick="() => DownloadFile(file.FileName)">Download</button></td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code {
+
+    private List<FileUpload.Data.FileData> files = new();
+    private IBrowserFile selectedFile;
+    private string uploadMessage; 
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Fetch the files when the page is initialized
+        files = (await FileServiceApp.GetFilesAsync()).ToList();
+    }
+
+    private void HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        selectedFile = e.File;
+    }
+
+    private async Task UploadFile()
+    {
+        if (selectedFile != null)
+        {
+            using var stream = selectedFile.OpenReadStream();
+            uploadMessage = await FileServiceApp.UploadFileAsync(selectedFile.Name, stream);
+            if (uploadMessage == "File uploaded successfully")
+            {
+                files = (await FileServiceApp.GetFilesAsync()).ToList();
+            }
+        }
+    }
+
+    private async Task DownloadFile(string fileName)
+    {
+        var stream = await FileServiceApp.DownloadFileAsync(fileName);
+        using var memoryStream = new MemoryStream();
+        await stream.CopyToAsync(memoryStream);
+        memoryStream.Position = 0;
+
+        // Pass the memory stream to the browser for download
+        using var streamRef = new DotNetStreamReference(memoryStream);
+        await JS.InvokeVoidAsync("downloadFileFromStream", fileName, streamRef);
+    }
+}
